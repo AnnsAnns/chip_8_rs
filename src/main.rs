@@ -69,6 +69,7 @@ impl Engine {
     fn cycle(&mut self) {
         self.opcode = self.memory[self.pc as usize] as u16 >> 8 | self.memory[self.pc as usize + 1] as u16; // Get next opcode
 
+        println!("{}", self.opcode); // Debug Info
         // @TODO: Everything lol
     }
 }
@@ -79,7 +80,7 @@ fn main() {
         opcode: 0,
         v: [0 as char; 16],
         i: 0,
-        pc: 0,
+        pc: 0x200,
         gfx: [0 as char; 64 * 32],
         delay_timer: 0 as char,
         sound_timer: 0 as char,
@@ -93,7 +94,7 @@ fn main() {
 
     engine.read_game("TETRIS");
 
-    for _ in 1..15 {
+    for _ in 1..50 {
         engine.cycle();
     }
 }
