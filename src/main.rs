@@ -16,16 +16,16 @@ use std::fs;
 struct Engine {
     // The Main Engine of the Emulator
     // Mostly taken from my older emulator: https://github.com/tumGER/CHIP-8/blob/master/main.go
-    memory: [char; 4096],
+    memory: [u8; 4096],
     //0x0 - 0x1FF Chip8 Interpreter
 	//0x050-0x0A0 Fonts
 	//0x200-0xFFF Program and RAM
 
     opcode: u16,
-    v: [char; 16], // CPU register
+    v: [u8; 16], // CPU register
     i: u16, // Index register
     pc: u16, // Program counter
-    gfx: [char; 64 * 32], // Screen
+    gfx: [u8; 64 * 32], // Screen
 
     delay_timer: char,
     sound_timer: char,
@@ -75,6 +75,12 @@ impl ProgramCounter {
     }
 }
 
+impl CPUCycle {
+    fn get_kk(&self) -> u8 {
+        (self.opcode & 0x00FF) as u8
+    }
+}
+
 impl Engine {
     fn init(&mut self) {
         // Clear variables
@@ -95,8 +101,8 @@ impl Engine {
         let mut n: usize = 512;
 
         for byte in buffer.into_iter() {
-            self.memory[n] = byte as char;
-            println!("{}", self.memory[n] as u8); // Debug
+            self.memory[n] = byte;
+            println!("{}", self.memory[n]); // Debug
 
             n += 1; // Is there a better solution?
         }
@@ -121,7 +127,7 @@ impl Engine {
                 match cycle.nn {
                     0xE0 => { // 0x00E0: Clears the screen
                         for byte in self.gfx.iter_mut() {
-                            *byte = 0 as char;
+                            *byte = 0;
                         }
 
                         ProgramCounter::Next
@@ -140,6 +146,23 @@ impl Engine {
                 // @TODO: Implement
                 ProgramCounter::Unknown
             }
+            0x3 => { // 3XKK Skip next instruction if Vx = kk.
+                ProgramCounter::skip_when(self.v[cycle.x as usize] == cycle.get_kk())
+            }
+            0x4 => { // 4XKK Skip next instruction if NOT Vx = kk.
+                ProgramCounter::skip_when(self.v[cycle.x as usize] != cycle.get_kk())
+            }
+            0x5 => { // 5xy0: Skip next instruction if Vx = Vy.
+                ProgramCounter::skip_when(self.v[cycle.x as usize] == self.v[cycle.y as usize])
+            }
+            0x6 => { // 6xkk: Set Vx = kk
+                self.v[cycle.x as usize] = cycle.get_kk();
+                ProgramCounter::Next
+            }
+            0x7 => { // 7xkk: Vx = Vx + kk.
+                self.v[cycle.x as usize] += cycle.get_kk();
+                ProgramCounter::Next
+            }
             _ => panic!("Unknown opcode: {}", self.opcode)
         };
 
@@ -149,12 +172,12 @@ impl Engine {
 
 fn main() {
     let mut engine = Engine {
-        memory: [0 as char; 4096],
+        memory: [0; 4096],
         opcode: 0,
-        v: [0 as char; 16],
+        v: [0; 16],
         i: 0,
         pc: 0x200,
-        gfx: [0 as char; 64 * 32],
+        gfx: [0; 64 * 32],
         delay_timer: 0 as char,
         sound_timer: 0 as char,
         stack: [0; 16],
