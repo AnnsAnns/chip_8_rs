@@ -120,7 +120,6 @@ impl Engine {
             y: (self.opcode >> 4 & 0x000F) as usize,
         };
         println!("{:X}", cycle.opcode); // Debug Info
-        // @TODO: Everything lol
 
         // Decode opcode, pc += 2 -> next cycle, pc += 4 -> skip cycle
         let next_pc = match (self.opcode & 0xF000) >> 12 {
@@ -263,7 +262,7 @@ impl Engine {
 
                 // @TODO: Implement
 
-                ProgramCounter::Next
+                ProgramCounter::Unknown
             }
             0xE => {
                 match cycle.nn {
@@ -286,7 +285,7 @@ impl Engine {
                     0x0A => { // FX0A: Wait for a key press, store the value of the key in Vx.
                         // @TODO: Implement
 
-                        ProgramCounter::Next
+                        ProgramCounter::Unknown
                     }
                     0x15 => { // FX15: Set delay timer = Vx.
                         self.delay_timer = self.v[cycle.x];
@@ -337,7 +336,7 @@ impl Engine {
             _ => panic!("Unknown opcode: {:X}", self.opcode)
         };
 
-        self.pc = next_pc.resolve();
+        self.pc += next_pc.resolve();
         println!("Executed opcode {:X} correctly!", self.opcode)
     }
 }
