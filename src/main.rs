@@ -19,8 +19,8 @@ use rand::Rng;
 
 use font::FONT_SET;
 
-const CHIP8_WIDTH: usize = 64;
-const CHIP8_HEIGHT: usize = 32;
+const HEIGHT: usize = 32;
+const WIDTH: usize = 64;
 
 struct Engine {
     // The Main Engine of the Emulator
@@ -34,7 +34,7 @@ struct Engine {
     v: [u8; 16], // CPU register
     i: u16, // Index register
     pc: u16, // Program counter
-    gfx: [u8; 64 * 32], // Screen
+    gfx: [[u8; WIDTH]; HEIGHT], // Screen
 
     delay_timer: u8,
     sound_timer: u8,
@@ -72,10 +72,10 @@ impl ProgramCounter {
         }
     }
 
-    fn resolve(&self) -> u16 {
+    fn resolve(&self, pc: u16) -> u16 {
         match self {
-            ProgramCounter::Next => 2,
-            ProgramCounter::Skip => 4,
+            ProgramCounter::Next => pc + 2,
+            ProgramCounter::Skip => pc + 4,
             ProgramCounter::Jump(line) => {
                 *line as u16
             }
@@ -135,15 +135,16 @@ impl Engine {
             0x0 => {
                 match cycle.nn {
                     0xE0 => { // 0x00E0: Clears the screen
-                        for byte in self.gfx.iter_mut() {
-                            *byte = 0;
+                        for x in 0..WIDTH {
+                            for y in 0..HEIGHT {
+                                self.gfx[x][y] = 0
+                            }
                         }
-
                         ProgramCounter::Next
                     }
                     0xEE => { // 0x00EE: Returns from subroutine
-                        // @TODO: Implement
-                        ProgramCounter::Unknown
+                        self.stackpointer -= 1; // Go back by one
+                        ProgramCounter::Jump(self.stack[self.stackpointer as usize] as u16)
                     }
                     _ => panic!("Unknown opcode: {:X}", self.opcode)
                 }
@@ -152,8 +153,10 @@ impl Engine {
                 ProgramCounter::Jump(cycle.nnn)
             }
             0x2 => { // 2NNN: Calls subroutine at address NNN
-                // @TODO: Implement
-                ProgramCounter::Unknown
+                self.stack[self.stackpointer as usize] = (self.pc + 2) as u8;
+                self.stackpointer += 1;
+
+                ProgramCounter::Jump(cycle.nnn)
             }
             0x3 => { // 3XKK Skip next instruction if Vx = kk.
                 ProgramCounter::skip_when(self.v[cycle.x] == cycle.get_kk())
@@ -268,10 +271,18 @@ impl Engine {
             }
             0xD => { // Draw a sprite at position VX, VY with N bytes of sprite data starting at the address stored in I
                 // Set VF to 01 if any set pixels are changed to unset, and 00 otherwise
+                for byte in 0..cycle.n {
+                    let y = (self.v[cycle.y] + byte) as usize % HEIGHT;
+                    for bit in 0..8 {
+                        let x = (self.v[cycle.x] + bit) as usize % WIDTH;
+                        let colour = (self.memory[(self.i + byte as u16) as usize] >> (7 - bit)) & 1;
+                        self.v[0xF] |= colour & self.gfx[y][x];
+                        self.gfx[y][x] ^= colour;
+                    }
+                }
 
-                // @TODO: Implement
-
-                ProgramCounter::Unknown
+                self.v[0xF] = 0;
+                ProgramCounter::Next
             }
             0xE => {
                 match cycle.nn {
@@ -345,7 +356,7 @@ impl Engine {
             _ => panic!("Unknown opcode: {:X}", self.opcode)
         };
 
-        self.pc += next_pc.resolve();
+        self.pc = next_pc.resolve(self.pc);
         println!("Executed opcode {:X} correctly!", self.opcode)
     }
 }
@@ -357,7 +368,7 @@ fn main() {
         v: [0; 16],
         i: 0,
         pc: 0x200,
-        gfx: [0; 64 * 32],
+        gfx: [[0; WIDTH]; HEIGHT],
         delay_timer: 0,
         sound_timer: 0,
         stack: [0; 16],
