@@ -29,8 +29,8 @@ struct Engine {
     pc: u16, // Program counter
     gfx: [u8; 64 * 32], // Screen
 
-    delay_timer: char,
-    sound_timer: char,
+    delay_timer: u8,
+    sound_timer: u8,
 
     stack: [u8; 16],
     stackpointer: u8,
@@ -276,10 +276,69 @@ impl Engine {
                     _ => panic!("Unknown opcode: {:X}", self.opcode)
                 }
             }
+            0xF => {
+                match cycle.nn {
+                    0x07 => { // Store the current value of the delay timer in register VX
+                        self.v[cycle.x] = self.delay_timer;
+
+                        ProgramCounter::Next
+                    }
+                    0x0A => { // FX0A: Wait for a key press, store the value of the key in Vx.
+                        // @TODO: Implement
+
+                        ProgramCounter::Next
+                    }
+                    0x15 => { // FX15: Set delay timer = Vx.
+                        self.delay_timer = self.v[cycle.x];
+
+                        ProgramCounter::Next
+                    }
+                    0x18 => { // FX18: Set sound timer = Vx.
+                        self.sound_timer = self.v[cycle.x];
+
+                        ProgramCounter::Next
+                    }
+                    0x1E => { // FX1E: Set I = I + Vx.
+                        self.i += self.v[cycle.x] as u16;
+
+                        ProgramCounter::Next
+                    }
+                    0x29 => {// FX29: Set I to the memory address of the sprite data corresponding to the hexadecimal digit stored in register VX
+                        self.i = self.v[cycle.x] as u16 * 5; // A sprite is 5 lines big
+
+                        ProgramCounter::Next
+                    }
+                    0x33 => { // FX33: Store the binary-coded decimal equivalent of the value stored in register VX at addresses I, I+1, and I+2
+                        // ty to https://github.com/starrhorne/chip8-rust/blob/master/src/processor.rs#L408
+                        self.memory[self.i as usize] = self.v[cycle.x] / 100;
+                        self.memory[self.i as usize + 1] = (self.v[cycle.x] % 100) / 10;
+                        self.memory[self.i as usize + 2] = self.v[cycle.x] % 10;
+
+                        ProgramCounter::Next
+                    }
+                    0x55 => { // FX55: Store registers V0 through Vx in memory starting at location I.
+                        // I is set to I + X + 1 after operation
+                        for byte in 0..cycle.x + 1 {
+                            self.memory[(self.i + byte as u16) as usize] = self.v[byte as usize];
+                        }
+
+                        ProgramCounter::Next
+                    }
+                    0x65 => { // FX65: Read registers V0 through Vx from memory starting at location I.
+                        for byte in 0..cycle.x + 1 {
+                            self.v[byte] = self.memory[(self.i + byte as u16) as usize];
+                        } 
+
+                        ProgramCounter::Next
+                    }
+                    _ => panic!("Unknown opcode: {:X}", self.opcode)
+                }
+            }
             _ => panic!("Unknown opcode: {:X}", self.opcode)
         };
 
         self.pc = next_pc.resolve();
+        println!("Executed opcode {:X} correctly!", self.opcode)
     }
 }
 
@@ -291,8 +350,8 @@ fn main() {
         i: 0,
         pc: 0x200,
         gfx: [0; 64 * 32],
-        delay_timer: 0 as char,
-        sound_timer: 0 as char,
+        delay_timer: 0,
+        sound_timer: 0,
         stack: [0; 16],
         stackpointer: 0,
         key: [false; 16],
