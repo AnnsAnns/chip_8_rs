@@ -173,6 +173,27 @@ impl Engine {
                         self.v[cycle.x as usize] = self.v[cycle.x] | self.v[cycle.y];
                         ProgramCounter::Next
                     }
+                    0x2 => { // 8XY2: Set Vx = Vx AND Vy. 
+                        self.v[cycle.x] = self.v[cycle.x] & self.v[cycle.y];
+                        ProgramCounter::Next
+                    }
+                    0x3 => { // 8XY3: Set Vx = Vx XOR Vy.
+                        self.v[cycle.x] = self.v[cycle.x] ^ self.v[cycle.y];
+                        ProgramCounter::Next
+                    }
+                    0x4 => { // Add the value of register VY to register VX
+                        // Set VF to 01 if a carry occurs
+                        // Set VF to 00 if a carry does not occur
+                        let add: u16 = self.v[cycle.x] as u16 + self.v[cycle.y] as u16;
+                        self.v[cycle.x] = add as u8;
+                        if add > 0xFF { // carry occurs
+                            self.v[0xF] = 1
+                        } else {
+                            self.v[0xF] = 0 // Might be wrong ... ?
+                        }
+
+                        ProgramCounter::Next
+                    }
                     _ => panic!("Unknown opcode: {}", self.opcode)
                 }
             }
