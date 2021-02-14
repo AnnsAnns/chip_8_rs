@@ -11,7 +11,6 @@
 * See the Licence for the specific language governing permissions and limitations under the Licence.
 */
 
-use std::io;
 use std::fs;
 
 struct Engine {
@@ -37,6 +36,43 @@ struct Engine {
     key: [char; 16], // Input
 
     draw_flag: bool, // Disable actually drawing to the screen
+}
+
+enum ProgramCounter {
+    Unknown,
+    Next,
+    Skip,
+    Jump(u16)
+}
+
+struct CPUCycle {
+    opcode: u16,
+    nnn: u16,
+    nn: u8,
+    n: u8,
+    x: u8,
+    y: u8,
+}
+
+impl ProgramCounter {
+    fn skip_when(condition: bool) -> ProgramCounter {
+        if condition {
+            ProgramCounter::Skip
+        } else {
+            ProgramCounter::Next
+        }
+    }
+
+    fn resolve(&self) -> u16 {
+        match self {
+            ProgramCounter::Next => 2,
+            ProgramCounter::Skip => 4,
+            ProgramCounter::Jump(line) => {
+                *line as u16
+            }
+            ProgramCounter::Unknown => panic!("Something went wrong and it appears like the ProgramCounter was never changed!")
+        }
+    }
 }
 
 impl Engine {
@@ -68,9 +104,46 @@ impl Engine {
 
     fn cycle(&mut self) {
         self.opcode = self.memory[self.pc as usize] as u16 >> 8 | self.memory[self.pc as usize + 1] as u16; // Get next opcode
-
-        println!("{}", self.opcode); // Debug Info
+        let mut cycle = CPUCycle {
+            opcode: self.opcode,
+            nnn: self.opcode & 0x0FFF,
+            nn: (self.opcode & 0x0FF) as u8,
+            n: (self.opcode & 0x00F) as u8,
+            x: (self.opcode >> 8 & 0x000F) as u8,
+            y: (self.opcode >> 4 & 0x000F) as u8,
+        };
+        println!("{}", cycle.opcode); // Debug Info
         // @TODO: Everything lol
+
+        // Decode opcode, pc += 2 -> next cycle, pc += 4 -> skip cycle
+        let next_pc = match (self.opcode & 0xF000) >> 12 {
+            0x0 => {
+                match cycle.nn {
+                    0xE0 => { // 0x00E0: Clears the screen
+                        for byte in self.gfx.iter_mut() {
+                            *byte = 0 as char;
+                        }
+
+                        ProgramCounter::Next
+                    }
+                    0xEE => { // 0x00EE: Returns from subroutine
+                        // @TODO: Implement
+                        ProgramCounter::Unknown
+                    }
+                    _ => panic!("Unknown opcode: {}", self.opcode)
+                }
+            }
+            0x1 => { // 1NNN: Jump to location nnn.
+                ProgramCounter::Jump(cycle.nnn)
+            }
+            0x2 => { // 2NNN: Calls subroutine at address NNN
+                // @TODO: Implement
+                ProgramCounter::Unknown
+            }
+            _ => panic!("Unknown opcode: {}", self.opcode)
+        };
+
+        self.pc = next_pc.resolve();
     }
 }
 
@@ -93,6 +166,8 @@ fn main() {
     // Please somebody give me a better solution, it feels so freaking wrong
 
     engine.read_game("TETRIS");
+
+    engine.read_font();
 
     for _ in 1..50 {
         engine.cycle();
