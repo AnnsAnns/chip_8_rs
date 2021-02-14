@@ -12,6 +12,8 @@
 */
 
 use std::fs;
+use rand;
+use rand::Rng;
 
 struct Engine {
     // The Main Engine of the Emulator
@@ -33,7 +35,7 @@ struct Engine {
     stack: [u8; 16],
     stackpointer: u8,
 
-    key: [char; 16], // Input
+    key: [bool; 16], // Input
 
     draw_flag: bool, // Disable actually drawing to the screen
 }
@@ -102,14 +104,13 @@ impl Engine {
 
         for byte in buffer.into_iter() {
             self.memory[n] = byte;
-            println!("{}", self.memory[n]); // Debug
 
             n += 1; // Is there a better solution?
         }
     }
 
     fn cycle(&mut self) {
-        self.opcode = self.memory[self.pc as usize] as u16 >> 8 | self.memory[self.pc as usize + 1] as u16; // Get next opcode
+        self.opcode = (self.memory[self.pc as usize] as u16) << 8 | self.memory[self.pc as usize + 1] as u16; // Get next opcode
         let cycle = CPUCycle {
             opcode: self.opcode,
             nnn: self.opcode & 0x0FFF,
@@ -118,7 +119,7 @@ impl Engine {
             x: (self.opcode >> 8 & 0x000F) as usize,
             y: (self.opcode >> 4 & 0x000F) as usize,
         };
-        println!("{}", cycle.opcode); // Debug Info
+        println!("{:X}", cycle.opcode); // Debug Info
         // @TODO: Everything lol
 
         // Decode opcode, pc += 2 -> next cycle, pc += 4 -> skip cycle
@@ -136,7 +137,7 @@ impl Engine {
                         // @TODO: Implement
                         ProgramCounter::Unknown
                     }
-                    _ => panic!("Unknown opcode: {}", self.opcode)
+                    _ => panic!("Unknown opcode: {:X}", self.opcode)
                 }
             }
             0x1 => { // 1NNN: Jump to location nnn.
@@ -194,10 +195,88 @@ impl Engine {
 
                         ProgramCounter::Next
                     }
-                    _ => panic!("Unknown opcode: {}", self.opcode)
+                    0x5 => { // 8XY5: Set Vx = Vx - Vy, set VF = NOT borrow.
+                        // Subtract the value of register VY from register VX
+                        // Set VF to 00 if a borrow occurs
+                        // Set VF to 01 if a borrow does not occur
+                        let sub: i8 = self.v[cycle.x] as i8 - self.v[cycle.y] as i8; // has to be signed since it could be negative
+                        self.v[cycle.x] = sub as u8;
+                        if sub < 0 {
+                            self.v[0xF] = 1
+                        } else {
+                            self.v[0xF] = 0 // I think
+                        }
+
+                        ProgramCounter::Next
+                    }
+                    0x6 => { // 8XY6: Set Vx = Vx SHR 1.
+                        // Store the value of register VY shifted right one bit in register VX
+                        // Set register VF to the least significant bit prior to the shift
+                        self.v[0xF] = self.v[cycle.x] & 1;
+                        self.v[cycle.x] >>= 1;
+
+                        ProgramCounter::Next
+                    }
+                    0x7 => { // Set register VX to the value of VY minus VX
+                        // Set VF to 00 if a borrow occurs
+                        //Set VF to 01 if a borrow does not occur
+                        let sub: i8 = self.v[cycle.y] as i8 - self.v[cycle.x] as i8; // has to be signed since it could be negative
+                        self.v[cycle.x] = sub as u8;
+                        if sub < 0 {
+                            self.v[0xF] = 1
+                        } else {
+                            self.v[0xF] = 0 // I think
+                        }
+
+                        ProgramCounter::Next
+                    }
+                    0xE => { // Store the value of register VY shifted left one bit in register VX
+                        // Set register VF to the most significant bit prior to the shift
+                        self.v[0xF] = (self.v[cycle.x] & 0x80) >> 7;
+                        self.v[cycle.x] <<= 1;
+
+                        ProgramCounter::Next
+                    }
+                    _ => panic!("Unknown opcode: {:X}", self.opcode)
                 }
             }
-            _ => panic!("Unknown opcode: {}", self.opcode)
+            0x9 => { // 9XY0: Skip next instruction if Vx != Vy.
+                ProgramCounter::skip_when(self.v[cycle.x] != self.v[cycle.y])
+            }
+            0xA => { // ANNN: Sets I to the adress NNN
+                self.i = cycle.nnn;
+
+                ProgramCounter::Next
+            }
+            0xB => { // BNNN: Jump to location nnn + V0
+                ProgramCounter::Jump(cycle.nnn + self.v[0] as u16)
+            }
+            0xC => { // Cxkk: Set Vx = random byte AND kk.
+                let mut random_gen = rand::thread_rng();
+                self.v[cycle.x] = random_gen.gen::<u8>() & cycle.get_kk();
+                // ty to https://github.com/starrhorne/chip8-rust/blob/master/src/processor.rs#L327
+
+                ProgramCounter::Next
+            }
+            0xD => { // Draw a sprite at position VX, VY with N bytes of sprite data starting at the address stored in I
+                // Set VF to 01 if any set pixels are changed to unset, and 00 otherwise
+
+                // @TODO: Implement
+
+                ProgramCounter::Next
+            }
+            0xE => {
+                match cycle.nn {
+                    0xA1 => { // ExA1: Skip next instruction if key with the value of Vx is not pressed.
+                        ProgramCounter::skip_when(!self.key[self.v[cycle.x] as usize])
+                    }
+                    0x9E => { // Ex9E: Skip next instruction if key with the value of Vx is pressed
+                        ProgramCounter::skip_when(self.key[self.v[cycle.x] as usize])
+                    }
+                    _ => panic!("Unknown opcode: {:X}", self.opcode)
+                }
+            }
+            _ => panic!("Unknown opcode: {:X}", self.opcode)
         };
 
         self.pc = next_pc.resolve();
@@ -216,7 +295,7 @@ fn main() {
         sound_timer: 0 as char,
         stack: [0; 16],
         stackpointer: 0,
-        key: [0 as char; 16],
+        key: [false; 16],
         draw_flag: false,
     }; // This looks so wrong, is this wrong, I think this is wrong. 
     // From what I understood I have to init my struct like this because the nature of Rust doesn't allow uninit values in safe mode
