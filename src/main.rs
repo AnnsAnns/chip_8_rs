@@ -11,9 +11,16 @@
 * See the Licence for the specific language governing permissions and limitations under the Licence.
 */
 
+mod font;
+
 use std::fs;
 use rand;
 use rand::Rng;
+
+use font::FONT_SET;
+
+const CHIP8_WIDTH: usize = 64;
+const CHIP8_HEIGHT: usize = 32;
 
 struct Engine {
     // The Main Engine of the Emulator
@@ -95,7 +102,9 @@ impl Engine {
     }
 
     fn read_font(&mut self) {
-        // @TODO: Read font
+        for i in 0..FONT_SET.len() {
+            self.memory[i] = FONT_SET[i];
+        }
     }
 
     fn read_game(&mut self, file_name: &str) {
@@ -359,9 +368,8 @@ fn main() {
     // From what I understood I have to init my struct like this because the nature of Rust doesn't allow uninit values in safe mode
     // Please somebody give me a better solution, it feels so freaking wrong
 
-    engine.read_game("TETRIS");
-
     engine.read_font();
+    engine.read_game("TETRIS");
 
     for _ in 1..50 {
         engine.cycle();
