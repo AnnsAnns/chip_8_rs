@@ -10,3 +10,4 @@ Emulating the CHIP 8 system in Rust.
 - http://mattmik.com/files/chip8/mastering/chip8.html
 - https://github.com/trapexit/chip-8_documentation
 - https://github.com/starrhorne/chip8-rust/
+- https://github.com/corax89/chip8-test-rom

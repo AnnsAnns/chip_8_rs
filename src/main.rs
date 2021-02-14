@@ -43,6 +43,8 @@ struct Engine {
     stackpointer: u8,
 
     key: [bool; 16], // Input
+    pressed_key: u8,
+    waiting_for_input: bool,
 
     draw_flag: bool, // Disable actually drawing to the screen
 }
@@ -172,7 +174,10 @@ impl Engine {
                 ProgramCounter::Next
             }
             0x7 => { // 7xkk: Vx = Vx + kk.
-                self.v[cycle.x] += cycle.get_kk();
+                let vx = self.v[cycle.x] as u16;
+                let val = cycle.get_kk() as u16;
+                let result = vx + val;
+                self.v[cycle.x] = result as u8;
                 ProgramCounter::Next
             }
             0x8 => {
@@ -303,9 +308,10 @@ impl Engine {
                         ProgramCounter::Next
                     }
                     0x0A => { // FX0A: Wait for a key press, store the value of the key in Vx.
-                        // @TODO: Implement
+                        self.waiting_for_input = true;
+                        self.v[cycle.x] = self.pressed_key;
 
-                        ProgramCounter::Unknown
+                        ProgramCounter::Next
                     }
                     0x15 => { // FX15: Set delay timer = Vx.
                         self.delay_timer = self.v[cycle.x];
@@ -374,15 +380,17 @@ fn main() {
         stack: [0; 16],
         stackpointer: 0,
         key: [false; 16],
+        pressed_key: 2,
+        waiting_for_input: false,
         draw_flag: false,
     }; // This looks so wrong, is this wrong, I think this is wrong. 
     // From what I understood I have to init my struct like this because the nature of Rust doesn't allow uninit values in safe mode
     // Please somebody give me a better solution, it feels so freaking wrong
 
     engine.read_font();
-    engine.read_game("TETRIS");
+    engine.read_game("test_opcode.ch8");
 
-    for _ in 1..50 {
+    loop {
         engine.cycle();
     }
 }
