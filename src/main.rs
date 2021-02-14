@@ -50,8 +50,8 @@ struct CPUCycle {
     nnn: u16,
     nn: u8,
     n: u8,
-    x: u8,
-    y: u8,
+    x: usize,
+    y: usize,
 }
 
 impl ProgramCounter {
@@ -110,13 +110,13 @@ impl Engine {
 
     fn cycle(&mut self) {
         self.opcode = self.memory[self.pc as usize] as u16 >> 8 | self.memory[self.pc as usize + 1] as u16; // Get next opcode
-        let mut cycle = CPUCycle {
+        let cycle = CPUCycle {
             opcode: self.opcode,
             nnn: self.opcode & 0x0FFF,
             nn: (self.opcode & 0x0FF) as u8,
             n: (self.opcode & 0x00F) as u8,
-            x: (self.opcode >> 8 & 0x000F) as u8,
-            y: (self.opcode >> 4 & 0x000F) as u8,
+            x: (self.opcode >> 8 & 0x000F) as usize,
+            y: (self.opcode >> 4 & 0x000F) as usize,
         };
         println!("{}", cycle.opcode); // Debug Info
         // @TODO: Everything lol
@@ -147,21 +147,34 @@ impl Engine {
                 ProgramCounter::Unknown
             }
             0x3 => { // 3XKK Skip next instruction if Vx = kk.
-                ProgramCounter::skip_when(self.v[cycle.x as usize] == cycle.get_kk())
+                ProgramCounter::skip_when(self.v[cycle.x] == cycle.get_kk())
             }
             0x4 => { // 4XKK Skip next instruction if NOT Vx = kk.
-                ProgramCounter::skip_when(self.v[cycle.x as usize] != cycle.get_kk())
+                ProgramCounter::skip_when(self.v[cycle.x] != cycle.get_kk())
             }
             0x5 => { // 5xy0: Skip next instruction if Vx = Vy.
-                ProgramCounter::skip_when(self.v[cycle.x as usize] == self.v[cycle.y as usize])
+                ProgramCounter::skip_when(self.v[cycle.x] == self.v[cycle.y])
             }
             0x6 => { // 6xkk: Set Vx = kk
-                self.v[cycle.x as usize] = cycle.get_kk();
+                self.v[cycle.x] = cycle.get_kk();
                 ProgramCounter::Next
             }
             0x7 => { // 7xkk: Vx = Vx + kk.
-                self.v[cycle.x as usize] += cycle.get_kk();
+                self.v[cycle.x] += cycle.get_kk();
                 ProgramCounter::Next
+            }
+            0x8 => {
+                match cycle.n {
+                    0x0 => { // 8XY0: Set Vx = Vy
+                        self.v[cycle.x] = self.v[cycle.y];
+                        ProgramCounter::Next
+                    }
+                    0x1 => { // 8XY1: set Vx = Vx OR Vy.
+                        self.v[cycle.x as usize] = self.v[cycle.x] | self.v[cycle.y];
+                        ProgramCounter::Next
+                    }
+                    _ => panic!("Unknown opcode: {}", self.opcode)
+                }
             }
             _ => panic!("Unknown opcode: {}", self.opcode)
         };
