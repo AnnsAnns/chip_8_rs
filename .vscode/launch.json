@@ -26,6 +26,14 @@
                     "ignoreFailures": true
                 }
             ]
+        },
+        {
+            "name": "LLDB Launch",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceRoot}/target/debug/chip_8_rs",
+            "args": [],
+            "cwd": "${workspaceRoot}",
         }
     ]
 }
