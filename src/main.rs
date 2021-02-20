@@ -22,11 +22,11 @@ const WIDTH: usize = 64;
 
 
 fn main() {
-    let mut engine = Engine::new();
+    let mut engine = Engine::new(false);
 
 
     engine.read_font();
-    engine.read_game("test_opcode.ch8");
+    engine.read_game("TETRIS");
 
     loop {
         engine.cycle();
@@ -35,7 +35,7 @@ fn main() {
             panic!("Waiting for input - Not implemented yet")
         }
 
-        if engine.waiting_for_draw && !engine.draw_flag {
+        if engine.waiting_for_draw && engine.draw_flag {
             panic!("Waiting for screen to be drawn - Not implemented yet")
         }
     }

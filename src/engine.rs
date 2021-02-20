@@ -63,7 +63,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new() -> Self {
+    pub fn new(draw: bool) -> Self {
         // Init new structure
         Self {   
             memory: [0; 4096],
@@ -80,7 +80,7 @@ impl Engine {
             pressed_key: 2,
             waiting_for_input: false,
             waiting_for_draw: false,
-            draw_flag: false,
+            draw_flag: draw,
         }
     }
 
@@ -122,7 +122,7 @@ impl Engine {
             y: (self.opcode >> 4 & 0x000F) as usize,
         };
         println!("{:X}", cycle.opcode); // Debug Info
-        
+
         // Decode opcode, pc += 2 -> next cycle, pc += 4 -> skip cycle
         let next_pc = match (self.opcode & 0xF000) >> 12 {
             0x0 => {
