@@ -52,7 +52,7 @@ pub struct Engine {
     delay_timer: u8,
     sound_timer: u8,
 
-    stack: [u8; 16],
+    stack: [u16; 16],
     stackpointer: u8,
 
     key: [bool; 16], // Input
@@ -145,7 +145,7 @@ impl Engine {
                 ProgramCounter::Jump(cycle.nnn)
             }
             0x2 => { // 2NNN: Calls subroutine at address NNN
-                self.stack[self.stackpointer as usize] = (self.pc + 2) as u8;
+                self.stack[self.stackpointer as usize] = self.pc + 2;
                 self.stackpointer += 1;
 
                 ProgramCounter::Jump(cycle.nnn)
@@ -177,15 +177,15 @@ impl Engine {
                         ProgramCounter::Next
                     }
                     0x1 => { // 8XY1: set Vx = Vx OR Vy.
-                        self.v[cycle.x as usize] = self.v[cycle.x] | self.v[cycle.y];
+                        self.v[cycle.x as usize] |= self.v[cycle.y];
                         ProgramCounter::Next
                     }
                     0x2 => { // 8XY2: Set Vx = Vx AND Vy. 
-                        self.v[cycle.x] = self.v[cycle.x] & self.v[cycle.y];
+                        self.v[cycle.x] &= self.v[cycle.y];
                         ProgramCounter::Next
                     }
                     0x3 => { // 8XY3: Set Vx = Vx XOR Vy.
-                        self.v[cycle.x] = self.v[cycle.x] ^ self.v[cycle.y];
+                        self.v[cycle.x] ^= self.v[cycle.y];
                         ProgramCounter::Next
                     }
                     0x4 => { // Add the value of register VY to register VX
@@ -227,12 +227,14 @@ impl Engine {
                         // Set VF to 00 if a borrow occurs
                         //Set VF to 01 if a borrow does not occur
                         let sub: i8 = self.v[cycle.y] as i8 - self.v[cycle.x] as i8; // has to be signed since it could be negative
-                        self.v[cycle.x] = sub as u8;
+                        
                         if sub < 0 {
                             self.v[0xF] = 1
                         } else {
                             self.v[0xF] = 0 // I think
                         }
+
+                        self.v[cycle.x] = sub as u8;
 
                         ProgramCounter::Next
                     }
@@ -266,6 +268,8 @@ impl Engine {
             }
             0xD => { // Draw a sprite at position VX, VY with N bytes of sprite data starting at the address stored in I
                 // Set VF to 01 if any set pixels are changed to unset, and 00 otherwise
+                self.v[0xF] = 0;
+
                 for byte in 0..cycle.n {
                     let y = (self.v[cycle.y] + byte) as usize % HEIGHT;
                     for bit in 0..8 {
@@ -276,7 +280,6 @@ impl Engine {
                     }
                 }
 
-                self.v[0xF] = 0;
                 ProgramCounter::Next
             }
             0xE => {
@@ -315,6 +318,11 @@ impl Engine {
                     }
                     0x1E => { // FX1E: Set I = I + Vx.
                         self.i += self.v[cycle.x] as u16;
+                        if self.i > 0xF {
+                            self.v[0xF] = 1
+                        } else {
+                            self.v[0xF] = 0
+                        }
 
                         ProgramCounter::Next
                     }
@@ -336,6 +344,8 @@ impl Engine {
                         for byte in 0..cycle.x + 1 {
                             self.memory[(self.i + byte as u16) as usize] = self.v[byte as usize];
                         }
+
+                        self.i += cycle.x as u16 + 1; // Might be wrong
 
                         ProgramCounter::Next
                     }
