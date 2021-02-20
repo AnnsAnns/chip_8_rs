@@ -30,5 +30,13 @@ fn main() {
 
     loop {
         engine.cycle();
+
+        if engine.waiting_for_input {
+            panic!("Waiting for input - Not implemented yet")
+        }
+
+        if engine.waiting_for_draw && !engine.draw_flag {
+            panic!("Waiting for screen to be drawn - Not implemented yet")
+        }
     }
 }

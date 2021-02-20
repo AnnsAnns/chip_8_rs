@@ -56,10 +56,10 @@ pub struct Engine {
     stackpointer: u8,
 
     key: [bool; 16], // Input
-    pressed_key: u8,
-    waiting_for_input: bool,
-
-    draw_flag: bool, // Disable actually drawing to the screen
+    pub pressed_key: u8,
+    pub waiting_for_input: bool,
+    pub waiting_for_draw: bool,
+    pub draw_flag: bool, // Disable actually drawing to the screen
 }
 
 impl Engine {
@@ -79,6 +79,7 @@ impl Engine {
             key: [false; 16],
             pressed_key: 2,
             waiting_for_input: false,
+            waiting_for_draw: false,
             draw_flag: false,
         }
     }
@@ -121,7 +122,7 @@ impl Engine {
             y: (self.opcode >> 4 & 0x000F) as usize,
         };
         println!("{:X}", cycle.opcode); // Debug Info
-
+        
         // Decode opcode, pc += 2 -> next cycle, pc += 4 -> skip cycle
         let next_pc = match (self.opcode & 0xF000) >> 12 {
             0x0 => {
@@ -275,6 +276,7 @@ impl Engine {
                     }
                 }
 
+                self.waiting_for_draw = true;
                 ProgramCounter::Next
             }
             0xE => {
