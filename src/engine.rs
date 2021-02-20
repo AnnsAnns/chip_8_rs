@@ -205,13 +205,8 @@ impl Engine {
                         // Subtract the value of register VY from register VX
                         // Set VF to 00 if a borrow occurs
                         // Set VF to 01 if a borrow does not occur
-                        let sub: i8 = self.v[cycle.x] as i8 - self.v[cycle.y] as i8; // has to be signed since it could be negative
-                        self.v[cycle.x] = sub as u8;
-                        if sub < 0 {
-                            self.v[0xF] = 1
-                        } else {
-                            self.v[0xF] = 0 // I think
-                        }
+                        self.v[0xF] = if self.v[cycle.x] > self.v[cycle.y] {1} else {0};
+                        self.v[cycle.x] = self.v[cycle.x].wrapping_sub(self.v[cycle.y]);
 
                         ProgramCounter::Next
                     }
