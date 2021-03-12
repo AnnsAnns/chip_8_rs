@@ -47,7 +47,7 @@ pub struct Engine {
     v: [u8; 16], // CPU register
     i: u16, // Index register
     pc: u16, // Program counter
-    gfx: [[u8; WIDTH]; HEIGHT], // Screen
+    pub gfx: [[u8; WIDTH]; HEIGHT], // Screen
 
     delay_timer: u8,
     sound_timer: u8,
@@ -55,8 +55,8 @@ pub struct Engine {
     stack: [u16; 16],
     stackpointer: u8,
 
-    key: [bool; 16], // Input
     pub pressed_key: u8,
+    pub input_received: bool,
     pub waiting_for_input: bool,
     pub waiting_for_draw: bool,
     pub draw_flag: bool, // Disable actually drawing to the screen
@@ -76,8 +76,8 @@ impl Engine {
             sound_timer: 0,
             stack: [0; 16],
             stackpointer: 0,
-            key: [false; 16],
             pressed_key: 2,
+            input_received: false,
             waiting_for_input: false,
             waiting_for_draw: false,
             draw_flag: draw,
@@ -282,10 +282,10 @@ impl Engine {
             0xE => {
                 match cycle.nn {
                     0xA1 => { // ExA1: Skip next instruction if key with the value of Vx is not pressed.
-                        ProgramCounter::skip_when(!self.key[self.v[cycle.x] as usize])
+                        ProgramCounter::skip_when(!self.v[cycle.x] == self.pressed_key)
                     }
                     0x9E => { // Ex9E: Skip next instruction if key with the value of Vx is pressed
-                        ProgramCounter::skip_when(self.key[self.v[cycle.x] as usize])
+                        ProgramCounter::skip_when(self.v[cycle.x] == self.pressed_key)
                     }
                     _ => panic!("Unknown opcode: {:X}", self.opcode)
                 }
@@ -299,6 +299,13 @@ impl Engine {
                     }
                     0x0A => { // FX0A: Wait for a key press, store the value of the key in Vx.
                         self.waiting_for_input = true;
+
+                        if self.input_received {
+                            self.waiting_for_input = false;
+                        } else {
+                            return
+                        }
+
                         self.v[cycle.x] = self.pressed_key;
 
                         ProgramCounter::Next
